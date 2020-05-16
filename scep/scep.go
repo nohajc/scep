@@ -10,6 +10,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base64"
 	"math/big"
@@ -135,6 +136,7 @@ var (
 	oidSCEPsenderNonce    = asn1.ObjectIdentifier{2, 16, 840, 1, 113733, 1, 9, 5}
 	oidSCEPrecipientNonce = asn1.ObjectIdentifier{2, 16, 840, 1, 113733, 1, 9, 6}
 	oidSCEPtransactionID  = asn1.ObjectIdentifier{2, 16, 840, 1, 113733, 1, 9, 7}
+	oidSubjectAltName     = asn1.ObjectIdentifier{2, 5, 29, 17}
 )
 
 // WithLogger adds option logging to the SCEP operations.
@@ -423,6 +425,22 @@ func (msg *PKIMessage) Fail(crtAuth *x509.Certificate, keyAuth *rsa.PrivateKey, 
 
 }
 
+func (msg *PKIMessage) withCSRParams(template *x509.Certificate) *x509.Certificate {
+	result := *template // make template copy
+
+	// fill in extra parameters from CSR
+
+	for _, uriSAN := range msg.CSRReqMessage.CSR.URIs {
+		sanAttr := pkix.AttributeTypeAndValue{
+			Type:  oidSubjectAltName,
+			Value: uriSAN.String(),
+		}
+		result.Subject.ExtraNames = append(result.Subject.ExtraNames, sanAttr)
+	}
+
+	return &result
+}
+
 // SignCSR creates an x509.Certificate based on a template and Cert Authority credentials
 // returns a new PKIMessage with CertRep data
 func (msg *PKIMessage) SignCSR(crtAuth *x509.Certificate, keyAuth *rsa.PrivateKey, template *x509.Certificate) (*PKIMessage, error) {
@@ -433,7 +451,7 @@ func (msg *PKIMessage) SignCSR(crtAuth *x509.Certificate, keyAuth *rsa.PrivateKe
 		}
 	}
 	// sign the CSR creating a DER encoded cert
-	crtBytes, err := x509.CreateCertificate(rand.Reader, template, crtAuth, msg.CSRReqMessage.CSR.PublicKey, keyAuth)
+	crtBytes, err := x509.CreateCertificate(rand.Reader, msg.withCSRParams(template), crtAuth, msg.CSRReqMessage.CSR.PublicKey, keyAuth)
 	if err != nil {
 		return nil, err
 	}

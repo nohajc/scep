@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -137,6 +138,8 @@ func makeOpenSSLTime(t time.Time) string {
 	return validDate
 }
 
+var oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+
 func makeDn(cert *x509.Certificate) string {
 	var dn bytes.Buffer
 
@@ -160,6 +163,14 @@ func makeDn(cert *x509.Certificate) string {
 	}
 	if len(cert.EmailAddresses) > 0 {
 		dn.WriteString("/emailAddress=" + cert.EmailAddresses[0])
+	}
+	for _, subjectAltName := range cert.Subject.Names {
+		if subjectAltName.Type.Equal(oidSubjectAltName) {
+			strVal, ok := subjectAltName.Value.(string)
+			if ok {
+				dn.WriteString("/subjectAltName=" + strVal)
+			}
+		}
 	}
 	return dn.String()
 }
