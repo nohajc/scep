@@ -229,6 +229,11 @@ func ParsePKIMessage(data []byte, opts ...Option) (*PKIMessage, error) {
 		return nil, err
 	}
 
+	err = p7.Verify()
+	if err != nil {
+		return nil, err
+	}
+
 	msg := &PKIMessage{
 		TransactionID: tID,
 		MessageType:   msgType,
