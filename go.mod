@@ -17,4 +17,4 @@ require (
 	golang.org/x/sys v0.0.0-20170728174421-0f826bdd13b5 // indirect
 )
 
-replace github.com/fullsailor/pkcs7 => github.com/nohajc/pkcs7 v0.0.0-20200516014214-d61f7c388f45
+replace github.com/fullsailor/pkcs7 => github.com/nohajc/pkcs7 v0.0.0-20200518230500-117151bef588

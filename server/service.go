@@ -91,33 +91,45 @@ func (svc *service) PKIOperation(ctx context.Context, data []byte) ([]byte, erro
 		return nil, err
 	}
 
-	// validate challenge passwords
-	if msg.MessageType == scep.PKCSReq {
-		CSRIsValid := false
+	var verifyOpts *x509.VerifyOptions = nil
 
-		if svc.csrVerifier != nil {
-			result, err := svc.csrVerifier.Verify(msg.CSRReqMessage.RawDecrypted)
-			if err != nil {
-				return nil, err
-			}
-			CSRIsValid = result
-			if !CSRIsValid {
-				svc.debugLogger.Log("err", "CSR is not valid")
-			}
-		} else {
-			CSRIsValid = svc.challengePasswordMatch(msg.CSRReqMessage.ChallengePassword)
-			if !CSRIsValid {
-				svc.debugLogger.Log("err", "scep challenge password does not match")
-			}
+	if len(msg.CSRReqMessage.ChallengePassword) > 0 {
+		correctPass := false
+		if msg.MessageType == scep.PKCSReq {
+			// validate challenge passwords
+			correctPass = svc.challengePasswordMatch(msg.CSRReqMessage.ChallengePassword)
 		}
+		// We don't allow the use of challenge password on RenewalReq
+		if !correctPass {
+			svc.debugLogger.Log("err", "scep challenge password does not match")
 
-		if !CSRIsValid {
 			certRep, err := msg.Fail(ca, svc.caKey, scep.BadRequest)
 			if err != nil {
 				return nil, err
 			}
 			return certRep.Raw, nil
 		}
+	} else {
+		// if no password was provided, we need to check the trust of client cert
+		roots := x509.NewCertPool()
+		roots.AddCert(svc.ca[0])
+		verifyOpts = &x509.VerifyOptions{
+			Roots: roots,
+			KeyUsages: []x509.ExtKeyUsage{
+				x509.ExtKeyUsageClientAuth,
+			},
+		}
+	}
+
+	err = msg.Verify(verifyOpts)
+	if err != nil {
+		svc.debugLogger.Log("err", "CSR is not valid")
+
+		certRep, err := msg.Fail(ca, svc.caKey, scep.BadRequest)
+		if err != nil {
+			return nil, err
+		}
+		return certRep.Raw, nil
 	}
 
 	csr := msg.CSRReqMessage.CSR

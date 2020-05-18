@@ -229,11 +229,6 @@ func ParsePKIMessage(data []byte, opts ...Option) (*PKIMessage, error) {
 		return nil, err
 	}
 
-	err = p7.Verify()
-	if err != nil {
-		return nil, err
-	}
-
 	msg := &PKIMessage{
 		TransactionID: tID,
 		MessageType:   msgType,
@@ -255,6 +250,12 @@ func ParsePKIMessage(data []byte, opts ...Option) (*PKIMessage, error) {
 	}
 
 	return msg, nil
+}
+
+// Verify if payload is trusted
+// if opts is nil, only signatures will be checked
+func (msg *PKIMessage) Verify(opts *x509.VerifyOptions) error {
+	return msg.p7.Verify(opts)
 }
 
 func (msg *PKIMessage) parseMessageType() error {
